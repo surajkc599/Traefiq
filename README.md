@@ -1,4 +1,4 @@
-# Traefiq
+# Traefiq (Angular and NODEjs services)
 Reverse proxy complete Setup
 
 ### **Getting Started**
