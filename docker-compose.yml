@@ -1,4 +1,3 @@
-# Do not modify directly in this file. Please take a backup before doing any changes below.
 # Static Config values are read from traefik.yml file
 # HTTPS certificate has been generated for Traefik instances using Letsencypt. In future we should have our own certs signed by root CA.
 # Environment variables are read from .env file. This file is parallel to docker-compose.yml file.
