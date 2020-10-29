@@ -1,0 +1,169 @@
+# Do not modify directly in this file. Please take a backup before doing any changes below.
+# Static Config values are read from traefik.yml file
+# HTTPS certificate has been generated for Traefik instances using Letsencypt. In future we should have our own certs signed by root CA.
+# Environment variables are read from .env file. This file is parallel to docker-compose.yml file.
+# Docker stack deploy cannot read .env file, although docker-compose up does. So deploy into swarm mode using below command.
+
+# docker stack deploy -c <(docker-compose -f  docker-compose.yml  config) <STACK_NAME>
+version: "3.7"
+
+services:
+  # Reverse proxy that handles docker containers incoming requests.
+  traefik:
+    image: traefik:2.3
+    ports:
+      # only expose https to outside world
+      - "443:443"
+      - "80:80"
+    volumes:
+      # Let traefik listen to any changes of containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Static Configuration which traefik reads during startup
+      - "${TRAEFIK_CONFIG_PATH}:/etc/traefik/traefik.yml"
+      # Logs from Host to Container
+      - "${TRAEFIK_LOG_PATH}:/var/log"
+      # AUth details would be saved here
+      - "${TRAEFIK_CERT_PATH}:/acme.json"
+    deploy:
+      labels:
+        # global redirect to https
+        - "traefik.enable=true"
+        - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
+        - "traefik.http.routers.http-catchall.entrypoints=${ENTRYPOINT}"
+        - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+        # Traefik Dashboard internal API
+        - "traefik.http.routers.http-catchall.service=api@internal"
+        # Middleware redirect
+        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+        # Dashboard secure route
+        - "traefik.http.routers.traefikRouterSecured.rule=Host(`$DOMAIN_HOST`)"
+        - "traefik.http.routers.traefikRouterSecured.entrypoints=${ENTRYPOINT_SECURE}"
+        - "traefik.http.routers.traefikRouterSecured.tls=true"
+        # Encryption generation
+        - "traefik.http.routers.traefikRouterSecured.tls.certresolver=letsencrypt"
+        # Basic Authentication
+        - "traefik.http.routers.traefikRouterSecured.middlewares=traefik-auth"
+        # Docker swarm do not support pointing to external file (in Future/ Other ways/ Configs need to investigate!)
+        - "traefik.http.middlewares.traefik-auth.basicauth.users=sne:$$apr1$$PwObUrPJ$$i89pI.4MauELZwnNZA4nw0"
+        # Remove header in order to avoid conflict
+        - "traefik.http.middlewares.traefik-auth.basicauth.removeheader=true"
+        # Listen for subdomains
+        - "traefik.http.routers.traefikRouterSecured.tls.domains[0].main=${DOMAIN_HOST}"
+        # Swarm loadbalance port
+        - "traefik.http.services.justAdummyService.loadbalancer.server.Port=${TRAEFIK_DEFAULT_PORT}"
+    networks:
+      - web # All containers work and interact with web network. we should create web network beforehead (Onetime creation on server)
+  
+  # Manage services using portainer (Scaling, access logs, deploy stack, remove/add containers etc..)
+  portainer:
+    image: portainer/portainer:latest
+    restart: always
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${ENTRYPOINT}"
+      - "traefik.http.routers.portainerApp.entrypoints=${ENTRYPOINT}"
+      - "traefik.http.routers.portainerApp.rule=Host(`portainer.$DOMAIN_HOST`)"
+      - "traefik.http.routers.portainerApp.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.portainerAppSecured.rule=Host(`portainer.$DOMAIN_HOST`)"
+      - "traefik.http.routers.portainerAppSecured.entrypoints=${ENTRYPOINT_SECURE}"
+      - "traefik.http.routers.portainerAppSecured.tls=true"
+      # Use the existing certificate to secure access to Portainer
+      - "traefik.http.routers.portainerAppSecured.tls.certresolver=letsencrypt"
+      # Let docker know that it needs to load balance on the port service is working
+      - "traefik.http.services.portainerAppService.loadbalancer.server.port=${PORTAINER_SERVER_PORT}"
+    networks:
+      - web
+
+  # Angular frontend application
+  angular-app:
+    image: angular_app:v1.0
+    build:
+      context: ${ANGULAR_APP_SERVER_CONTEXT}
+      dockerfile: Dockerfile
+      # Expose the variables to Dockerfile during build time
+      # Actual ENV variables are read from .env file
+      args:
+        NODE_ENV: ${NODE_ENV}
+        SERVER_PORT: ${ANGULAR_APP_SERVER_PORT}
+        HOME_WORK_DIR: ${HOME_WORK_DIR}
+    environment:
+        - NODE_ENV=${NODE_ENV}
+        - SERVER_PORT=${ANGULAR_APP_SERVER_PORT}
+    volumes:
+      - ${ANGULAR_APP_SERVER_LOG_PATH}:${HOME_WORK_DIR}/angular-app/logs
+    # 3 instances of containers are spawned for Monteurs_Server
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.monteurs-app.entrypoints=${ENTRYPOINT}"
+        - "traefik.http.routers.monteurs-app.rule=Host(`web.$DOMAIN_HOST`)"
+        - "traefik.http.routers.monteurs-app.middlewares=redirect-to-https"
+        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.monteursAppSecured.rule=Host(`web.$DOMAIN_HOST`)"
+        - "traefik.http.routers.monteursAppSecured.entrypoints=${ENTRYPOINT_SECURE}"
+        - "traefik.http.routers.monteursAppSecured.tls=true"
+        # Use the existing certificate to secure access to Monteurs
+        - "traefik.http.routers.monteursAppSecured.tls.certresolver=letsencrypt"
+        # Let docker know that it needs to load balance on the port service is working
+        - "traefik.http.services.monteursAppService.loadbalancer.server.port=${ANGULAR_APP_SERVER_PORT}"
+    networks:
+      - web
+
+  # Backend service for Angular app
+  api-server:
+    image: frontend_api_server:v1.0
+    build:
+      context: ${API_SERVER_CONTEXT}
+      dockerfile: Dockerfile
+      args:
+        HOME_WORK_DIR: ${HOME_WORK_DIR}
+    # Runtime environment variable that can be used by container to run the Service
+    # Actual ENV variables are read from .env file
+    environment:
+        - NODE_ENV=${NODE_ENV}
+        - SERVER_PORT=${API_SERVER_PORT}
+    volumes:
+      - ${API_SERVER_CONTEXT}:${HOME_WORK_DIR}/api-server
+      - ${API_SERVER_LOG_PATH}:${HOME_WORK_DIR}/api-server/logs
+      - ${HOME_WORK_DIR}/api-server/node_modules
+    # 3 instances of containers are spawned for API_Server
+    deploy:
+      replicas: 5
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.android-api-server.entrypoints=${ENTRYPOINT}"
+        - "traefik.http.routers.android-api-server.rule=Host(`api.$DOMAIN_HOST`)"
+        - "traefik.http.routers.android-api-server.middlewares=redirect-to-https"
+        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.androidAppServer.rule=Host(`api.$DOMAIN_HOST`)"
+        - "traefik.http.routers.androidAppServer.entrypoints=${ENTRYPOINT_SECURE}"
+        - "traefik.http.routers.androidAppServer.tls=true"
+        # Use the existing certificate to secure access to Monteurs
+        - "traefik.http.routers.androidAppServer.tls.certresolver=letsencrypt"
+        # Let docker know that it needs to load balance on the port service is working
+        - "traefik.http.services.androidAppServerService.loadbalancer.server.port=${API_SERVER_PORT}"
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
+
+volumes:
+  portainer_data: {}

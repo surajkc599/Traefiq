@@ -1,0 +1,60 @@
+# Enable Docker configuration backend
+providers:
+  docker:
+    network: web
+    watch: true
+    exposedByDefault: true
+    swarmMode: true
+    swarmModeRefreshSeconds: 5
+
+# EntryPoints definition
+entryPoints:
+  web:
+    address: ":80"
+
+  web-secure:
+    address: ":443"
+
+# API and dashboard configuration
+api:
+  insecure: true
+  dashboard: true
+
+# Logs configuration
+log:
+  level: debug
+  format: json
+  filePath: "/var/log/traefik/traefik.log"
+
+accessLog:
+  format: json
+  bufferingSize: 5
+  filePath: "/var/log/traefik/access.log"
+
+# HTTPS configuration
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "kcs.suraj@gmail.com"
+      storage: acme.json
+      caServer: "https://acme-v02.api.letsencrypt.org/directory"
+      httpChallenge:
+        entryPoint: web
+
+tracing:
+  spanNameLimit: 0
+  serviceName: traefik
+  jaeger:
+    samplingServerURL: http://localhost:5778/sampling
+    samplingType: const
+    samplingParam: 1.0
+    localAgentHostPort: 127.0.0.1:6831
+    gen128Bit: true
+    propagation: jaeger
+    traceContextHeaderName: uber-trace-id
+    disableAttemptReconnecting: false
+    collector:
+      endpoint: http://127.0.0.1:14268/api/traces?format=jaeger.thrift
+
+
+
