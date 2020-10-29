@@ -95,7 +95,7 @@ services:
         - SERVER_PORT=${ANGULAR_APP_SERVER_PORT}
     volumes:
       - ${ANGULAR_APP_SERVER_LOG_PATH}:${HOME_WORK_DIR}/angular-app/logs
-    # 3 instances of containers are spawned for Monteurs_Server
+    # 3 instances of containers are spawned 
     deploy:
       replicas: 3
       restart_policy:
@@ -105,17 +105,17 @@ services:
         window: 120s
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.monteurs-app.entrypoints=${ENTRYPOINT}"
-        - "traefik.http.routers.monteurs-app.rule=Host(`web.$DOMAIN_HOST`)"
-        - "traefik.http.routers.monteurs-app.middlewares=redirect-to-https"
+        - "traefik.http.routers.frontend-app.entrypoints=${ENTRYPOINT}"
+        - "traefik.http.routers.frontend-app.rule=Host(`web.$DOMAIN_HOST`)"
+        - "traefik.http.routers.frontend-app.middlewares=redirect-to-https"
         - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-        - "traefik.http.routers.monteursAppSecured.rule=Host(`web.$DOMAIN_HOST`)"
-        - "traefik.http.routers.monteursAppSecured.entrypoints=${ENTRYPOINT_SECURE}"
-        - "traefik.http.routers.monteursAppSecured.tls=true"
-        # Use the existing certificate to secure access to Monteurs
-        - "traefik.http.routers.monteursAppSecured.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.frontendAppSecured.rule=Host(`web.$DOMAIN_HOST`)"
+        - "traefik.http.routers.frontendAppSecured.entrypoints=${ENTRYPOINT_SECURE}"
+        - "traefik.http.routers.frontendAppSecured.tls=true"
+        # Use the existing certificate to secure access 
+        - "traefik.http.routers.frontendAppSecured.tls.certresolver=letsencrypt"
         # Let docker know that it needs to load balance on the port service is working
-        - "traefik.http.services.monteursAppService.loadbalancer.server.port=${ANGULAR_APP_SERVER_PORT}"
+        - "traefik.http.services.frontendAppService.loadbalancer.server.port=${ANGULAR_APP_SERVER_PORT}"
     networks:
       - web
 
@@ -146,17 +146,17 @@ services:
         window: 120s
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.android-api-server.entrypoints=${ENTRYPOINT}"
-        - "traefik.http.routers.android-api-server.rule=Host(`api.$DOMAIN_HOST`)"
-        - "traefik.http.routers.android-api-server.middlewares=redirect-to-https"
+        - "traefik.http.routers.api-server.entrypoints=${ENTRYPOINT}"
+        - "traefik.http.routers.api-server.rule=Host(`api.$DOMAIN_HOST`)"
+        - "traefik.http.routers.api-server.middlewares=redirect-to-https"
         - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-        - "traefik.http.routers.androidAppServer.rule=Host(`api.$DOMAIN_HOST`)"
-        - "traefik.http.routers.androidAppServer.entrypoints=${ENTRYPOINT_SECURE}"
-        - "traefik.http.routers.androidAppServer.tls=true"
-        # Use the existing certificate to secure access to Monteurs
-        - "traefik.http.routers.androidAppServer.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.apiServer.rule=Host(`api.$DOMAIN_HOST`)"
+        - "traefik.http.routers.apiServer.entrypoints=${ENTRYPOINT_SECURE}"
+        - "traefik.http.routers.apiServer.tls=true"
+        # Use the existing certificate to secure access
+        - "traefik.http.routers.apiServer.tls.certresolver=letsencrypt"
         # Let docker know that it needs to load balance on the port service is working
-        - "traefik.http.services.androidAppServerService.loadbalancer.server.port=${API_SERVER_PORT}"
+        - "traefik.http.services.apiServerService.loadbalancer.server.port=${API_SERVER_PORT}"
     networks:
       - web
 
